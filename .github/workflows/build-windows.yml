@@ -22,41 +22,51 @@ jobs:
         with:
           node-version: "24"
 
-      - name: Detect project folder
+      - name: Find project folder
         shell: pwsh
         run: |
-          if (Test-Path "package.json") {
-            echo "PROJECT_DIR=." >> $env:GITHUB_ENV
-            Write-Host "Project found in repository root"
-          }
-          elseif (Test-Path "dawish-label-manager-desktop/package.json") {
-            echo "PROJECT_DIR=dawish-label-manager-desktop" >> $env:GITHUB_ENV
-            Write-Host "Project found in dawish-label-manager-desktop"
-          }
-          else {
-            Write-Host "No package.json found"
+          $pkg = Get-ChildItem -Path . -Recurse -Filter package.json |
+            Where-Object {
+              $_.FullName -notmatch "\\node_modules\\" -and
+              $_.FullName -notmatch "\\release\\" -and
+              $_.FullName -notmatch "\\dist\\"
+            } |
+            Select-Object -First 1
+
+          if (-not $pkg) {
+            Write-Host "No package.json found anywhere"
             Get-ChildItem -Force
             exit 1
           }
 
+          $projectDir = $pkg.Directory.FullName
+          Write-Host "Project folder found:"
+          Write-Host $projectDir
+
+          echo "PROJECT_DIR=$projectDir" >> $env:GITHUB_ENV
+
       - name: Install dependencies
         shell: pwsh
-        run: npm --prefix "$env:PROJECT_DIR" install
+        run: |
+          Set-Location "$env:PROJECT_DIR"
+          npm install
 
       - name: Build Windows installer
         shell: pwsh
-        run: npm --prefix "$env:PROJECT_DIR" run dist
+        run: |
+          Set-Location "$env:PROJECT_DIR"
+          npm run dist
 
       - name: Collect installer files
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path artifacts | Out-Null
+          New-Item -ItemType Directory -Force -Path "$env:GITHUB_WORKSPACE\artifacts" | Out-Null
 
-          if (Test-Path "$env:PROJECT_DIR/release") {
-            Copy-Item "$env:PROJECT_DIR/release/*" artifacts -Recurse -Force
+          if (Test-Path "$env:PROJECT_DIR\release") {
+            Copy-Item "$env:PROJECT_DIR\release\*" "$env:GITHUB_WORKSPACE\artifacts" -Recurse -Force
           }
-          elseif (Test-Path "$env:PROJECT_DIR/dist") {
-            Copy-Item "$env:PROJECT_DIR/dist/*" artifacts -Recurse -Force
+          elseif (Test-Path "$env:PROJECT_DIR\dist") {
+            Copy-Item "$env:PROJECT_DIR\dist\*" "$env:GITHUB_WORKSPACE\artifacts" -Recurse -Force
           }
           else {
             Write-Host "No release or dist folder found"
