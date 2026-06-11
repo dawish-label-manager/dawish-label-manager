@@ -13,10 +13,6 @@ jobs:
   build-windows:
     runs-on: windows-2025
 
-    defaults:
-      run:
-        working-directory: dawish-label-manager-desktop
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -26,50 +22,50 @@ jobs:
         with:
           node-version: "24"
 
-      - name: Install dependencies
-        run: npm install
-
-      - name: Set unique app version for this build
+      - name: Detect project folder
         shell: pwsh
         run: |
-          $pkg = Get-Content package.json | ConvertFrom-Json
-          $parts = $pkg.version.Split('.')
-          $major = $parts[0]
-          $minor = $parts[1]
-          $version = "$major.$minor.${{ github.run_number }}"
-          $pkg.version = $version
-          $pkg | ConvertTo-Json -Depth 50 | Set-Content package.json -Encoding UTF8
-          "APP_VERSION=$version" >> $env:GITHUB_ENV
-          "APP_TAG=v$version" >> $env:GITHUB_ENV
-          Write-Host "Build version: $version"
-
-      - name: Prepare GitHub tag
-        shell: pwsh
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git fetch --tags
-
-          if (git tag -l $env:APP_TAG) {
-            Write-Host "Tag already exists: $env:APP_TAG"
-          } else {
-            git tag $env:APP_TAG
-            git push origin $env:APP_TAG
-            Write-Host "Created tag: $env:APP_TAG"
+          if (Test-Path "package.json") {
+            echo "PROJECT_DIR=." >> $env:GITHUB_ENV
+            Write-Host "Project found in repository root"
+          }
+          elseif (Test-Path "dawish-label-manager-desktop/package.json") {
+            echo "PROJECT_DIR=dawish-label-manager-desktop" >> $env:GITHUB_ENV
+            Write-Host "Project found in dawish-label-manager-desktop"
+          }
+          else {
+            Write-Host "No package.json found"
+            Get-ChildItem -Force
+            exit 1
           }
 
-      - name: Build and publish Windows installer
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm run release
+      - name: Install dependencies
+        shell: pwsh
+        run: npm --prefix "$env:PROJECT_DIR" install
+
+      - name: Build Windows installer
+        shell: pwsh
+        run: npm --prefix "$env:PROJECT_DIR" run dist
+
+      - name: Collect installer files
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path artifacts | Out-Null
+
+          if (Test-Path "$env:PROJECT_DIR/release") {
+            Copy-Item "$env:PROJECT_DIR/release/*" artifacts -Recurse -Force
+          }
+          elseif (Test-Path "$env:PROJECT_DIR/dist") {
+            Copy-Item "$env:PROJECT_DIR/dist/*" artifacts -Recurse -Force
+          }
+          else {
+            Write-Host "No release or dist folder found"
+            Get-ChildItem "$env:PROJECT_DIR" -Force
+            exit 1
+          }
 
       - name: Upload installer to Actions
-        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: Dawish-Label-Manager-Windows
-          if-no-files-found: warn
-          path: |
-            dawish-label-manager-desktop/release/*.exe
-            dawish-label-manager-desktop/release/*.yml
-            dawish-label-manager-desktop/release/*.blockmap
+          path: artifacts/**
