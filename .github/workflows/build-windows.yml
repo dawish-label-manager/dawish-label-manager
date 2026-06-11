@@ -51,11 +51,11 @@ jobs:
           Set-Location "$env:PROJECT_DIR"
           npm install
 
-      - name: Build Windows installer
+      - name: Build Windows installer without publishing
         shell: pwsh
         run: |
           Set-Location "$env:PROJECT_DIR"
-          npm run dist
+          npm run dist -- --publish never
 
       - name: Collect installer files
         shell: pwsh
@@ -63,10 +63,14 @@ jobs:
           New-Item -ItemType Directory -Force -Path "$env:GITHUB_WORKSPACE\artifacts" | Out-Null
 
           if (Test-Path "$env:PROJECT_DIR\release") {
-            Copy-Item "$env:PROJECT_DIR\release\*" "$env:GITHUB_WORKSPACE\artifacts" -Recurse -Force
+            Copy-Item "$env:PROJECT_DIR\release\*.exe" "$env:GITHUB_WORKSPACE\artifacts" -Force
+            Copy-Item "$env:PROJECT_DIR\release\*.yml" "$env:GITHUB_WORKSPACE\artifacts" -Force -ErrorAction SilentlyContinue
+            Copy-Item "$env:PROJECT_DIR\release\*.blockmap" "$env:GITHUB_WORKSPACE\artifacts" -Force -ErrorAction SilentlyContinue
           }
           elseif (Test-Path "$env:PROJECT_DIR\dist") {
-            Copy-Item "$env:PROJECT_DIR\dist\*" "$env:GITHUB_WORKSPACE\artifacts" -Recurse -Force
+            Copy-Item "$env:PROJECT_DIR\dist\*.exe" "$env:GITHUB_WORKSPACE\artifacts" -Force
+            Copy-Item "$env:PROJECT_DIR\dist\*.yml" "$env:GITHUB_WORKSPACE\artifacts" -Force -ErrorAction SilentlyContinue
+            Copy-Item "$env:PROJECT_DIR\dist\*.blockmap" "$env:GITHUB_WORKSPACE\artifacts" -Force -ErrorAction SilentlyContinue
           }
           else {
             Write-Host "No release or dist folder found"
