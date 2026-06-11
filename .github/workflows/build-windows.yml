@@ -52,3 +52,12 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run release
+
+      - name: Upload installer to Actions
+        uses: actions/upload-artifact@v4
+        with:
+          name: Dawish-Label-Manager-Windows
+          path: |
+            dawish-label-manager-desktop/release/*.exe
+            dawish-label-manager-desktop/release/*.yml
+            dawish-label-manager-desktop/release/*.blockmap
